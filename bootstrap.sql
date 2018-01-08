@@ -1,0 +1,19 @@
+CREATE TABLE users (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE cryptos (
+  id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  symbol TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE holdings (
+  user_id INTEGER NOT NULL,
+  crypto_id INTEGER NOT NULL,
+  amount REAL NOT NULL,
+  PRIMARY KEY (user_id, crypto_id),
+  FOREIGN KEY (user_id) REFERENCES users (id),
+  FOREIGN KEY (crypto_id) REFERENCES cryptos (id)
+);
+
