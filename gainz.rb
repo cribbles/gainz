@@ -49,14 +49,15 @@ def format_headers(headers)
 end
 
 def get_api_url(from, to)
-  "https://min-api.cryptocompare.com/data/price?fsym=#{from}&tsyms=#{to}"
+  "https://min-api.cryptocompare.com/data/price?fsym=#{to}&tsyms=#{from.join(',')}"
 end
 
-def get_conversion(from, to)
+def get_conversions(from, to)
   url = get_api_url(from, to)
   resp = open(url).read
   data = JSON.parse(resp)
-  data[to]
+  conversions = data.map { |(symbol, price)| [symbol, 1/price] }
+  Hash[conversions]
 end
 
 def get_exchange_currency
@@ -152,16 +153,16 @@ OptionParser.new do |parser|
       WHERE user_id = #{user_id}
     SQL
 
-    conversions = result.map do |(crypto, amount)|
-      get_conversion(crypto, exchange_currency) * amount
-    end
+    symbols = result.map(&:first)
+    conversions = get_conversions(symbols, exchange_currency)
+    holdings = result.map { |(crypto, amount)| conversions[crypto] * amount }
 
-    cryptos = conversions
+    cryptos = holdings
       .zip(result)
       .map { |conversion, row| [conversion] + row }
       .sort_by { |(conversion)| -conversion }
 
-    total = conversions.reduce(:+)
+    total = holdings.reduce(:+)
 
     puts [
       "USER: #{name}",
@@ -204,9 +205,7 @@ OptionParser.new do |parser|
       SELECT symbol FROM cryptos
     SQL
 
-    conversions = cryptos.map do |(crypto)|
-      get_conversion(crypto, exchange_currency)
-    end
+    conversions = get_conversions(cryptos, exchange_currency)
 
     holdings = db.execute2(<<-SQL).drop(1)
       SELECT u.name, c.symbol, h.amount
@@ -218,7 +217,7 @@ OptionParser.new do |parser|
     users = holdings.group_by { |(name)| name }.to_a
     user_totals = users.map do |(user, value)|
       total = value.reduce(0) do |total, (_, crypto, amount)|
-        total + (get_conversion(crypto, exchange_currency) * amount)
+        total + (conversions[crypto] * amount)
       end
       [user, total]
     end
@@ -251,4 +250,3 @@ OptionParser.new do |parser|
     puts parser
   end
 end.parse!
-
