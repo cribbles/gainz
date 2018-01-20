@@ -4,7 +4,10 @@ require "json"
 require "open-uri"
 require "optparse"
 require "sqlite3"
+require "uri"
 
+API_PATH = "price"
+API_ROOT = "https://min-api.cryptocompare.com/data/"
 DB_FILE_NAME = "gainz.db"
 EXCHANGE_CURRENCY_DEFAULT = "USD"
 NUM_HEADER_PADDING_CHARS = 5
@@ -49,7 +52,10 @@ def format_headers(headers)
 end
 
 def get_api_url(from, to)
-  "https://min-api.cryptocompare.com/data/price?fsym=#{to}&tsyms=#{from.join(',')}"
+  API_ROOT + API_PATH + "?" + URI.encode_www_form(
+    fsym: to,
+    tsyms: from.join(',')
+  )
 end
 
 def get_conversions(from, to)
