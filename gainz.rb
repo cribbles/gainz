@@ -6,7 +6,8 @@ require "optparse"
 require "sqlite3"
 require "uri"
 
-API_PATH = "price"
+API_PATH_DEFAULT = "price"
+API_PATH_HISTORICAL = "pricehistorical"
 API_ROOT = "https://min-api.cryptocompare.com/data/"
 DB_FILE_NAME = "gainz.db"
 EXCHANGE_CURRENCY_DEFAULT = "USD"
@@ -51,11 +52,15 @@ def format_headers(headers)
   end.join(" ")
 end
 
-def get_api_url(from, to)
-  API_ROOT + API_PATH + "?" + URI.encode_www_form(
+def get_api_url(from, to, options = {})
+  timestamp = options.fetch(:timestamp, nil)
+  api_path = timestamp ? API_PATH_HISTORICAL : API_PATH_DEFAULT
+  query_params = {
     fsym: to,
-    tsyms: from.join(',')
-  )
+    tsyms: from.join(','),
+    toTs: timestamp
+  }.reject { |_, v| v.nil? }
+  API_ROOT + api_path + "?" + URI.encode_www_form(query_params)
 end
 
 def get_conversions(from, to)
