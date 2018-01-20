@@ -56,7 +56,9 @@ def get_conversions(from, to)
   url = get_api_url(from, to)
   resp = open(url).read
   data = JSON.parse(resp)
-  conversions = data.map { |(symbol, price)| [symbol, 1/price] }
+  conversions = data.map do |(symbol, price)|
+    [symbol, 1/price]
+  end
   Hash[conversions]
 end
 
@@ -155,7 +157,9 @@ OptionParser.new do |parser|
 
     symbols = result.map(&:first)
     conversions = get_conversions(symbols, exchange_currency)
-    holdings = result.map { |(crypto, amount)| conversions[crypto] * amount }
+    holdings = result.map do |(crypto, amount)|
+      conversions[crypto] * amount
+    end
 
     cryptos = holdings
       .zip(result)
