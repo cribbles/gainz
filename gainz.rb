@@ -183,9 +183,9 @@ def format_percent(percent)
 end
 
 def get_percent_change(current, past)
-  ratio = past.fdiv(current)
-  ratio_as_percent = (1 - ratio) * 100
-  ratio_as_percent.round(2)
+  change = current - past
+  ratio = change.fdiv(past)
+  (ratio * 100).round(2)
 end
 
 parser = OptionParser.new do |parser|
@@ -301,22 +301,25 @@ parser = OptionParser.new do |parser|
     end
 
     holdings = result.map do |(crypto, amount)|
-      current_conversions[crypto] * amount
-    end
+      [
+        current_conversions[crypto] * amount,
+        historical_conversions[crypto] * amount
+      ]
+    end.transpose
+
+    total, historical_total = holdings.map { |h| h.reduce(:+) }
 
     cryptos = holdings
+      .first
       .zip(result)
       .map { |conversion, row| [conversion] + row }
       .sort_by { |(conversion)| -conversion }
 
-    total = holdings.reduce(:+)
-    total_percent_change = format_percent(
-      changes.values.reduce(:+) / changes.values.reject { |c| c == 0 }.size
-    )
+    total_percent_change = get_percent_change(total, historical_total)
 
     puts [
       "USER: #{name}",
-      "TOTAL: #{total.round(2)} #{total_percent_change}",
+      "TOTAL: #{total.round(2)} #{format_percent(total_percent_change)}",
       "\n"
     ].join("\n")
 
