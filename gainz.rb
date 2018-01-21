@@ -177,7 +177,9 @@ def format_price(price)
 end
 
 def format_percent(percent)
-  (percent > 0 ? "+" : "") + add_trailing_zeros(percent)
+  return "-------" if percent == 0
+  formatted = (percent > 0 ? "+" : "") + add_trailing_zeros(percent)
+  "(#{formatted}%)"
 end
 
 def get_percent_change(current, past)
@@ -314,7 +316,7 @@ parser = OptionParser.new do |parser|
 
     puts [
       "USER: #{name}",
-      "TOTAL: #{total.round(2)} (#{total_percent_change}%)",
+      "TOTAL: #{total.round(2)} #{total_percent_change}",
       "\n"
     ].join("\n")
 
@@ -330,14 +332,13 @@ parser = OptionParser.new do |parser|
     puts format % headers
 
     cryptos.each do |(conversion, symbol, amount)|
-      percent_change = format_percent(changes[symbol])
       percent_of_total = (conversion / total * 100).to_i
       price = format_price(conversion / amount)
       puts format % [
         "#{percent_of_total}%",
         symbol,
         price,
-        "(#{percent_change}%)",
+        format_percent(changes[symbol]),
         format_price(amount),
         format_price(conversion)
       ]
@@ -403,7 +404,7 @@ parser = OptionParser.new do |parser|
         i + 1,
         user,
         total.round(2),
-        "(#{format_percent(percent_change)}%)"
+        format_percent(percent_change)
       ]
     end
   end
