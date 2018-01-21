@@ -373,13 +373,16 @@ parser = OptionParser.new do |parser|
 
     users = holdings.group_by { |(name)| name }.to_a
     user_totals = users.map do |(user, value)|
-      total = value.reduce(0) do |total, (_, crypto, amount)|
-        total + (current_conversions[crypto] * amount)
+      get_total = ->(conversions) do
+        value.reduce(0) do |total, (_, crypto, amount)|
+          total + (conversions[crypto] * amount)
+        end
       end
-      historical_total = value.reduce(0) do |total, (_, crypto, amount)|
-        total + (historical_conversions[crypto] * amount)
-      end
-      [user, total, historical_total]
+      [
+        user,
+        get_total.call(current_conversions),
+        get_total.call(historical_conversions)
+      ]
     end
     sorted_user_totals = user_totals.sort_by { |(_, total)| -total }
 
