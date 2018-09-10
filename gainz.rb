@@ -358,9 +358,27 @@ parser = OptionParser.new do |parser|
     duration = get_duration
     exchange_currency = get_exchange_currency
 
+    num_users = db.get_first_value <<-SQL
+      SELECT COUNT(*) FROM users
+    SQL
+
+    if num_users == 0
+      abort [
+        "Couldn't display leaderboard: no user data.",
+        "Try running: ./gainz.rb -a USER"
+      ].join("\n")
+    end
+
     symbols = db.execute2(<<-SQL).drop(1).map(&:first)
       SELECT symbol FROM cryptos
     SQL
+
+    if symbols.empty?
+      abort [
+        "Couldn't display leaderboard: no crypto data.",
+        "Try running: ./gainz.rb -u USER CRYPTO AMOUNT"
+      ].join("\n")
+    end
 
     current_conversions, historical_conversions = get_conversions(
       symbols,
