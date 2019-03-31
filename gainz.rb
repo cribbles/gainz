@@ -3,6 +3,7 @@
 require "json"
 require "open-uri"
 require "optparse"
+require "set"
 require "sqlite3"
 require "uri"
 
@@ -132,13 +133,36 @@ maximizing the number in each request.
   chunks << current_chunk
 end
 
-def get_conversions(from, to, duration)
-  current_conversions = convert(from, to)
-  historical_conversions = get_historical_currency_chunks(from)
-    .map { |chunk| convert(chunk, to, duration) }
+def get_conversions(options)
+  historical_conversions = get_historical_currency_chunks(options[:from])
+    .map { |chunk| convert(chunk, options[:to], options[:duration]) }
     .reduce({}) { |conversions, chunk| conversions.merge(chunk) }
 
-  [current_conversions, historical_conversions]
+  current_conversions = convert(options[:from], options[:to])
+
+  conversions = [current_conversions, historical_conversions]
+
+  if options[:filter_missing_values]
+    filter_missing_values(*conversions)
+  else
+    conversions
+  end
+end
+
+def filter_missing_values(current_conversions, historical_conversions)
+=begin
+Filtering zero-value historical conversions is sometimes necessary because
+CryptoCompare's API sometimes returns 0 for historical data (either because CC
+does not track historical data for the coin, or because the token did not exist
+before a certain date).
+=end
+  non_zero_historical_conversions = historical_conversions.reject do |_, value|
+    value.zero?
+  end
+  non_zero_current_conversions = current_conversions.select do |currency|
+    non_zero_historical_conversions.include?(currency)
+  end
+  [non_zero_current_conversions, non_zero_historical_conversions]
 end
 
 def optional_exchange_params
@@ -281,9 +305,9 @@ parser = OptionParser.new do |parser|
     symbols = result.map(&:first)
 
     current_conversions, historical_conversions = get_conversions(
-      symbols,
-      exchange_currency,
-      duration
+      from: symbols,
+      to: exchange_currency,
+      duration: duration
     )
 
     changes = symbols.reduce({}) do |changes, symbol|
@@ -300,12 +324,16 @@ parser = OptionParser.new do |parser|
       changes.merge(symbol => percent_change)
     end
 
-    holdings = result.map do |(crypto, amount)|
+    raw_holdings = result.map do |(crypto, amount)|
       [
         current_conversions[crypto] * amount,
         historical_conversions[crypto] * amount
       ]
-    end.transpose
+    end
+
+    holdings = raw_holdings
+      .reject { |_, historical| historical.zero? }
+      .transpose
 
     total, historical_total = holdings.map { |h| h.reduce(:+) }
 
@@ -369,28 +397,35 @@ parser = OptionParser.new do |parser|
       ].join("\n")
     end
 
-    symbols = db.execute2(<<-SQL).drop(1).map(&:first)
-      SELECT symbol FROM cryptos
+    cryptos = Hash[db.execute2(<<-SQL).drop(1)]
+      SELECT id, symbol FROM cryptos
     SQL
 
-    if symbols.empty?
+    if cryptos.empty?
       abort [
         "Couldn't display leaderboard: no crypto data.",
         "Try running: ./gainz.rb -u USER CRYPTO AMOUNT"
       ].join("\n")
     end
 
+    symbols = cryptos.values
     current_conversions, historical_conversions = get_conversions(
-      symbols,
-      exchange_currency,
-      duration
+      from: symbols,
+      to: exchange_currency,
+      duration: duration,
+      filter_missing_values: true
     )
+    valid_symbols = Set.new(current_conversions.keys)
+    valid_crypto_ids = cryptos
+      .select { |_, symbol| valid_symbols.include?(symbol) }
+      .keys
 
     holdings = db.execute2(<<-SQL).drop(1)
       SELECT u.name, c.symbol, h.amount
       FROM holdings h
       LEFT OUTER JOIN cryptos c ON c.id = h.crypto_id
       LEFT OUTER JOIN users u ON u.id = h.user_id
+      WHERE h.crypto_id IN (#{valid_crypto_ids.join(", ")})
     SQL
 
     users = holdings.group_by { |(name)| name }.to_a
