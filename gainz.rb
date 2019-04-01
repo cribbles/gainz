@@ -134,11 +134,12 @@ maximizing the number in each request.
 end
 
 def get_conversions(options)
-  historical_conversions = get_historical_currency_chunks(options[:from])
-    .map { |chunk| convert(chunk, options[:to], options[:duration]) }
+  from, to, duration = options.values_at(:from, :to, :duration)
+  historical_conversions = get_historical_currency_chunks(from)
+    .map { |chunk| convert(chunk, to, duration) }
     .reduce({}) { |conversions, chunk| conversions.merge(chunk) }
 
-  current_conversions = convert(options[:from], options[:to])
+  current_conversions = convert(from, to)
 
   conversions = [current_conversions, historical_conversions]
 
